@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-MZ">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      (function () {
+        try {
+          var originalFetch = window.fetch ? window.fetch.bind(window) : undefined;
+          var desc =
+            Object.getOwnPropertyDescriptor(window, 'fetch') ||
+            Object.getOwnPropertyDescriptor(Window.prototype, 'fetch');
+          if (desc && desc.configurable && !desc.writable && !desc.set) {
+            var currentFetch = originalFetch;
+            Object.defineProperty(window, 'fetch', {
+              configurable: true,
+              enumerable: true,
+              get: function () {
+                return currentFetch;
+              },
+              set: function (fn) {
+                currentFetch = fn;
+              },
+            });
+          }
+        } catch (_e) {}
+
+        window.addEventListener(
+          'error',
+          function (event) {
+            var fromExtension =
+              (event && typeof event.filename === 'string' && event.filename.indexOf('chrome-extension://') === 0) ||
+              (event && event.error && typeof event.error.stack === 'string' && event.error.stack.indexOf('chrome-extension://') !== -1);
+            if (fromExtension && event.message && event.message.indexOf('fetch') !== -1) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+            }
+          },
+          true
+        );
+        window.addEventListener('beforeinstallprompt', function (e) {
+          e.preventDefault();
+          window.__bfDeferredInstallPrompt = e;
+        });
+
+        try {
+          var savedTheme = localStorage.getItem('gestorpro_theme_v1');
+          if (savedTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (_t) {}
+      })();
+    </script>
+    <title>GestorPro — Gestão Comercial em Moçambique</title>
+    <meta name="description" content="Gestão simples e offline de stock, vendas, dívidas de clientes e relatórios em Meticais para pequenos negócios em Moçambique." />
+    <meta property="og:title" content="GestorPro — Gestão Comercial em Moçambique" />
+    <meta property="og:description" content="Controle o stock, registe vendas e cobre dívidas pelo WhatsApp mesmo com pouca internet." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#15803D" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="GestorPro" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body class="bg-[#F6F8F6] dark:bg-[#0B140F] text-[#0F1F16] dark:text-[#F1F5F2] antialiased selection:bg-[#FEF08A] selection:text-[#0F1F16] transition-colors duration-200">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

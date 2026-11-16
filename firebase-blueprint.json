@@ -1,0 +1,237 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Utilizador autenticado (dono, funcionário ou administrador)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 20 },
+        "email": { "type": "string", "maxLength": 160 },
+        "role": { "type": "string", "enum": ["owner", "staff", "admin"] },
+        "businessId": { "type": "string", "maxLength": 128 },
+        "ownerUid": { "type": "string", "maxLength": 128 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "phone", "email", "role", "businessId", "ownerUid", "active", "createdAt", "updatedAt"]
+    },
+    "Business": {
+      "title": "Business",
+      "description": "Perfil do pequeno negócio em Moçambique",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "type": { "type": "string", "enum": ["mercearia", "barraca", "salao", "barbearia", "outro"] },
+        "phone": { "type": "string", "maxLength": 20 },
+        "nuit": { "type": "string", "maxLength": 20 },
+        "logoDataUrl": { "type": "string", "maxLength": 150000 },
+        "categories": { "type": "array" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "memberUids": { "type": "array" },
+        "staffCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "type", "phone", "nuit", "logoDataUrl", "categories", "ownerUid", "memberUids", "staffCount", "createdAt", "updatedAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Produto com controlo de stock ou serviço sem stock",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "businessId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "memberUids": { "type": "array" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "category": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "isService": { "type": "boolean" },
+        "costPrice": { "type": "number" },
+        "salePrice": { "type": "number" },
+        "quantity": { "type": "number" },
+        "minStock": { "type": "number" },
+        "photoDataUrl": { "type": "string", "maxLength": 180000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "businessId", "ownerUid", "memberUids", "name", "category", "isService", "costPrice", "salePrice", "quantity", "minStock", "photoDataUrl", "createdAt", "updatedAt"]
+    },
+    "Sale": {
+      "title": "Sale",
+      "description": "Venda registada no ponto de venda com itens e método de pagamento",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "businessId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "memberUids": { "type": "array" },
+        "items": { "type": "array" },
+        "subtotal": { "type": "number" },
+        "discount": { "type": "number" },
+        "total": { "type": "number" },
+        "estimatedProfit": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["dinheiro", "mpesa", "emola", "mkesh", "credito"] },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "staffUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "staffName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "offlineId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "businessId", "ownerUid", "memberUids", "items", "subtotal", "discount", "total", "estimatedProfit", "paymentMethod", "customerId", "customerName", "staffUid", "staffName", "offlineId", "createdAt"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Cliente do negócio para vendas a crédito e cobranças",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "businessId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "memberUids": { "type": "array" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "phone": { "type": "string", "minLength": 7, "maxLength": 25 },
+        "secondaryPhone": { "type": "string", "maxLength": 25 },
+        "totalDebt": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "businessId", "ownerUid", "memberUids", "name", "phone", "totalDebt", "createdAt", "updatedAt"]
+    },
+    "Debt": {
+      "title": "Debt",
+      "description": "Registo de dívida originada por venda a crédito",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "businessId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "memberUids": { "type": "array" },
+        "customerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "saleId": { "type": "string", "maxLength": 128 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "originalAmount": { "type": "number" },
+        "remainingAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["open", "partial", "paid"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "businessId", "ownerUid", "memberUids", "customerId", "saleId", "description", "originalAmount", "remainingAmount", "status", "createdAt", "updatedAt"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Pagamento total ou parcial de dívida de cliente",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "businessId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "memberUids": { "type": "array" },
+        "customerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "debtId": { "type": "string", "maxLength": 128 },
+        "amount": { "type": "number" },
+        "method": { "type": "string", "enum": ["dinheiro", "mpesa", "emola", "mkesh"] },
+        "note": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "businessId", "ownerUid", "memberUids", "customerId", "debtId", "amount", "method", "note", "createdAt"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "Estado da subscrição Pro do negócio",
+      "type": "object",
+      "properties": {
+        "businessId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "memberUids": { "type": "array" },
+        "planId": { "type": "string", "enum": ["free", "monthly", "quarterly", "annual"] },
+        "status": { "type": "string", "enum": ["demo", "pending", "active", "expired"] },
+        "expiresAtMs": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["businessId", "ownerUid", "memberUids", "planId", "status", "expiresAtMs", "updatedAt"]
+    },
+    "PaymentRequest": {
+      "title": "PaymentRequest",
+      "description": "Pedido manual de pagamento M-Pesa, e-Mola ou mKesh",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "businessId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "ownerName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "ownerPhone": { "type": "string", "maxLength": 20 },
+        "planId": { "type": "string", "enum": ["monthly", "quarterly", "annual"] },
+        "amount": { "type": "number" },
+        "wallet": { "type": "string", "enum": ["mpesa", "emola", "mkesh"] },
+        "transactionCode": { "type": "string", "minLength": 3, "maxLength": 80 },
+        "proofNote": { "type": "string", "maxLength": 300 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "adminNote": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "businessId", "ownerUid", "ownerName", "ownerPhone", "planId", "amount", "wallet", "transactionCode", "proofNote", "status", "adminNote", "createdAt", "updatedAt"]
+    },
+    "PasswordResetRequest": {
+      "title": "PasswordResetRequest",
+      "description": "Pedido de redefinição manual de palavra-passe",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "phone": { "type": "string", "minLength": 7, "maxLength": 25 },
+        "name": { "type": "string", "maxLength": 100 },
+        "note": { "type": "string", "maxLength": 240 },
+        "status": { "type": "string", "enum": ["pending", "resolved"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "phone", "name", "note", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Perfis de utilizadores e papéis RBAC"
+    },
+    "/businesses/{businessId}": {
+      "schema": { "$ref": "#/entities/Business" },
+      "description": "Dados dos negócios registados"
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Produtos e serviços por negócio"
+    },
+    "/sales/{saleId}": {
+      "schema": { "$ref": "#/entities/Sale" },
+      "description": "Vendas registadas por negócio"
+    },
+    "/customers/{customerId}": {
+      "schema": { "$ref": "#/entities/Customer" },
+      "description": "Clientes e saldos de dívida por negócio"
+    },
+    "/debts/{debtId}": {
+      "schema": { "$ref": "#/entities/Debt" },
+      "description": "Movimentos de dívida a crédito"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Amortizações e pagamentos de dívidas"
+    },
+    "/subscriptions/{businessId}": {
+      "schema": { "$ref": "#/entities/Subscription" },
+      "description": "Estado de subscrição Pro por negócio"
+    },
+    "/paymentRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/PaymentRequest" },
+      "description": "Pedidos manuais de pagamento móvel"
+    },
+    "/passwordResetRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/PasswordResetRequest" },
+      "description": "Pedidos de redefinição de senha para o administrador"
+    }
+  }
+}

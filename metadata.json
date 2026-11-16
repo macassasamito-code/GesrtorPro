@@ -1,0 +1,6 @@
+{
+  "name": "BancaFácil",
+  "description": "Gestão simples e offline de stock, vendas, dívidas de clientes e relatórios em Meticais para pequenos negócios em Moçambique.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

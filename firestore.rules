@@ -1,0 +1,587 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Primitives ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedOrPhoneUser() {
+      return isSignedIn() && (
+        request.auth.token.email_verified == true ||
+        (request.auth.token.email is string &&
+         request.auth.token.email.matches('^[0-9]{7,15}@bancafacil\\.app$'))
+      );
+    }
+
+    function isAdminToken() {
+      return isSignedIn() &&
+        request.auth.token.email == 'macassasamito@gmail.com' &&
+        request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isAdminToken() ||
+        (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    function isValidMemberList(list) {
+      return list is list &&
+        list.size() >= 1 &&
+        list.size() <= 3 &&
+        list[0] is string &&
+        list[0].size() >= 1 &&
+        list[0].size() <= 128;
+    }
+
+    function isValidStringList(list, maxLen, itemMax) {
+      return list is list &&
+        list.size() <= maxLen &&
+        (list.size() == 0 || (list[0] is string && list[0].size() >= 1 && list[0].size() <= itemMax));
+    }
+
+    function isBusinessMember(data) {
+      return isSignedIn() && (
+        data.ownerUid == request.auth.uid ||
+        request.auth.uid in data.memberUids
+      );
+    }
+
+    function isBusinessOwner(data) {
+      return isSignedIn() && data.ownerUid == request.auth.uid;
+    }
+
+    function businessExists(businessId) {
+      return exists(/databases/$(database)/documents/businesses/$(businessId));
+    }
+
+    function isMemberOfBusiness(businessId) {
+      return isSignedIn() &&
+        businessExists(businessId) && (
+          get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerUid == request.auth.uid ||
+          request.auth.uid in get(/databases/$(database)/documents/businesses/$(businessId)).data.memberUids
+        );
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'phone', 'email', 'role', 'businessId', 'ownerUid', 'active', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'name', 'phone', 'email', 'role', 'businessId', 'ownerUid', 'active', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+        data.phone is string && data.phone.size() <= 20 &&
+        data.email is string && data.email.size() <= 160 &&
+        data.role in ['owner', 'staff', 'admin'] &&
+        data.businessId is string && data.businessId.size() <= 128 &&
+        data.ownerUid is string && data.ownerUid.size() <= 128 &&
+        data.active is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidBusiness(data) {
+      return data.keys().hasAll(['id', 'name', 'type', 'phone', 'nuit', 'logoDataUrl', 'categories', 'ownerUid', 'memberUids', 'staffCount', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'name', 'type', 'phone', 'nuit', 'logoDataUrl', 'categories', 'ownerUid', 'memberUids', 'staffCount', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.type in ['mercearia', 'barraca', 'salao', 'barbearia', 'outro'] &&
+        data.phone is string && data.phone.size() <= 20 &&
+        data.nuit is string && data.nuit.size() <= 20 &&
+        data.logoDataUrl is string && data.logoDataUrl.size() <= 150000 &&
+        isValidStringList(data.categories, 30, 60) &&
+        isValidId(data.ownerUid) &&
+        isValidMemberList(data.memberUids) &&
+        data.staffCount is int && data.staffCount >= 0 && data.staffCount <= 2 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['id', 'businessId', 'ownerUid', 'memberUids', 'name', 'category', 'isService', 'costPrice', 'salePrice', 'quantity', 'minStock', 'photoDataUrl', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'businessId', 'ownerUid', 'memberUids', 'name', 'category', 'isService', 'costPrice', 'salePrice', 'quantity', 'minStock', 'photoDataUrl', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.businessId) &&
+        isValidId(data.ownerUid) &&
+        isValidMemberList(data.memberUids) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+        data.isService is bool &&
+        data.costPrice is number && data.costPrice >= 0 &&
+        data.salePrice is number && data.salePrice >= 0 &&
+        data.quantity is number && data.quantity >= 0 &&
+        data.minStock is number && data.minStock >= 0 &&
+        data.photoDataUrl is string && data.photoDataUrl.size() <= 180000 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSale(data) {
+      return data.keys().hasAll(['id', 'businessId', 'ownerUid', 'memberUids', 'items', 'subtotal', 'discount', 'total', 'estimatedProfit', 'paymentMethod', 'customerId', 'customerName', 'staffUid', 'staffName', 'offlineId', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'businessId', 'ownerUid', 'memberUids', 'items', 'subtotal', 'discount', 'total', 'estimatedProfit', 'paymentMethod', 'customerId', 'customerName', 'staffUid', 'staffName', 'offlineId', 'createdAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.businessId) &&
+        isValidId(data.ownerUid) &&
+        isValidMemberList(data.memberUids) &&
+        data.items is list && data.items.size() >= 1 && data.items.size() <= 50 && data.items[0] is map &&
+        data.subtotal is number && data.subtotal >= 0 &&
+        data.discount is number && data.discount >= 0 &&
+        data.total is number && data.total >= 0 &&
+        data.estimatedProfit is number &&
+        data.paymentMethod in ['dinheiro', 'mpesa', 'emola', 'mkesh', 'credito'] &&
+        data.customerId is string && data.customerId.size() <= 128 &&
+        data.customerName is string && data.customerName.size() <= 120 &&
+        isValidId(data.staffUid) &&
+        data.staffName is string && data.staffName.size() >= 1 && data.staffName.size() <= 100 &&
+        data.offlineId is string && data.offlineId.size() <= 128 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidCustomer(data) {
+      return data.keys().hasAll(['id', 'businessId', 'ownerUid', 'memberUids', 'name', 'phone', 'totalDebt', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'businessId', 'ownerUid', 'memberUids', 'name', 'phone', 'secondaryPhone', 'totalDebt', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.businessId) &&
+        isValidId(data.ownerUid) &&
+        isValidMemberList(data.memberUids) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.phone is string && data.phone.size() >= 7 && data.phone.size() <= 25 &&
+        (!('secondaryPhone' in data) || (data.secondaryPhone is string && data.secondaryPhone.size() <= 25)) &&
+        data.totalDebt is number && data.totalDebt >= 0 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidDebt(data) {
+      return data.keys().hasAll(['id', 'businessId', 'ownerUid', 'memberUids', 'customerId', 'saleId', 'description', 'originalAmount', 'remainingAmount', 'status', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'businessId', 'ownerUid', 'memberUids', 'customerId', 'saleId', 'description', 'originalAmount', 'remainingAmount', 'status', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.businessId) &&
+        isValidId(data.ownerUid) &&
+        isValidMemberList(data.memberUids) &&
+        isValidId(data.customerId) &&
+        data.saleId is string && data.saleId.size() <= 128 &&
+        data.description is string && data.description.size() >= 1 && data.description.size() <= 240 &&
+        data.originalAmount is number && data.originalAmount > 0 &&
+        data.remainingAmount is number && data.remainingAmount >= 0 && data.remainingAmount <= data.originalAmount &&
+        data.status in ['open', 'partial', 'paid'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPayment(data) {
+      return data.keys().hasAll(['id', 'businessId', 'ownerUid', 'memberUids', 'customerId', 'debtId', 'amount', 'method', 'note', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'businessId', 'ownerUid', 'memberUids', 'customerId', 'debtId', 'amount', 'method', 'note', 'createdAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.businessId) &&
+        isValidId(data.ownerUid) &&
+        isValidMemberList(data.memberUids) &&
+        isValidId(data.customerId) &&
+        data.debtId is string && data.debtId.size() <= 128 &&
+        data.amount is number && data.amount > 0 &&
+        data.method in ['dinheiro', 'mpesa', 'emola', 'mkesh'] &&
+        data.note is string && data.note.size() <= 200 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidSubscription(data) {
+      return data.keys().hasAll(['businessId', 'ownerUid', 'memberUids', 'planId', 'status', 'expiresAtMs', 'updatedAt']) &&
+        data.keys().hasOnly(['businessId', 'ownerUid', 'memberUids', 'planId', 'status', 'expiresAtMs', 'updatedAt']) &&
+        isValidId(data.businessId) &&
+        isValidId(data.ownerUid) &&
+        isValidMemberList(data.memberUids) &&
+        data.planId in ['free', 'monthly', 'quarterly', 'annual'] &&
+        data.status in ['demo', 'pending', 'active', 'expired'] &&
+        data.expiresAtMs is number && data.expiresAtMs >= 0 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPaymentRequest(data) {
+      return data.keys().hasAll(['id', 'businessId', 'ownerUid', 'ownerName', 'ownerPhone', 'planId', 'amount', 'wallet', 'transactionCode', 'proofNote', 'status', 'adminNote', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'businessId', 'ownerUid', 'ownerName', 'ownerPhone', 'planId', 'amount', 'wallet', 'transactionCode', 'proofNote', 'status', 'adminNote', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.businessId) &&
+        isValidId(data.ownerUid) &&
+        data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 100 &&
+        data.ownerPhone is string && data.ownerPhone.size() <= 20 &&
+        data.planId in ['monthly', 'quarterly', 'annual'] &&
+        data.amount is number && data.amount > 0 &&
+        data.wallet in ['mpesa', 'emola', 'mkesh'] &&
+        data.transactionCode is string && data.transactionCode.size() >= 3 && data.transactionCode.size() <= 80 &&
+        data.proofNote is string && data.proofNote.size() <= 300 &&
+        data.status in ['pending', 'approved', 'rejected'] &&
+        data.adminNote is string && data.adminNote.size() <= 300 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPasswordResetRequest(data) {
+      return data.keys().hasAll(['id', 'phone', 'name', 'note', 'status', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'phone', 'name', 'note', 'status', 'createdAt']) &&
+        isValidId(data.id) &&
+        data.phone is string && data.phone.size() >= 7 && data.phone.size() <= 25 &&
+        data.name is string && data.name.size() <= 100 &&
+        data.note is string && data.note.size() <= 240 &&
+        data.status in ['pending', 'resolved'] &&
+        data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isAdmin() || (isSignedIn() && request.auth.uid == adminId));
+      allow list: if isAdminToken();
+      allow write: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (
+        (isSignedIn() && request.auth.uid == userId) ||
+        (isSignedIn() && existing().ownerUid == request.auth.uid) ||
+        isAdmin()
+      );
+      allow list: if isAdminToken() || (
+        isSignedIn() && (
+          resource.data.uid == request.auth.uid ||
+          resource.data.ownerUid == request.auth.uid
+        )
+      );
+      allow create: if isValidId(userId) && isVerifiedOrPhoneUser() && isValidUser(incoming()) && (
+        isAdmin() ||
+        (
+          incoming().uid == userId &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time && (
+            (
+              userId == request.auth.uid &&
+              incoming().role == 'owner' &&
+              incoming().ownerUid == request.auth.uid &&
+              incoming().businessId == request.auth.uid &&
+              incoming().active == true
+            ) ||
+            (
+              userId != request.auth.uid &&
+              incoming().role == 'staff' &&
+              incoming().ownerUid == request.auth.uid &&
+              incoming().businessId == request.auth.uid &&
+              businessExists(request.auth.uid) &&
+              get(/databases/$(database)/documents/businesses/$(request.auth.uid)).data.staffCount < 2
+            )
+          )
+        )
+      );
+      allow update: if isValidId(userId) && isVerifiedOrPhoneUser() && isValidUser(incoming()) && (
+        isAdmin() ||
+        (
+          incoming().uid == existing().uid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          incoming().role == existing().role &&
+          incoming().ownerUid == existing().ownerUid &&
+          incoming().businessId == existing().businessId && (
+            (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'updatedAt'])) ||
+            (existing().ownerUid == request.auth.uid && existing().role == 'staff' && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'active', 'updatedAt']))
+          )
+        )
+      );
+      allow delete: if isValidId(userId) && (
+        isAdmin() ||
+        (isVerifiedOrPhoneUser() && existing().ownerUid == request.auth.uid && existing().role == 'staff')
+      );
+    }
+
+    match /businesses/{businessId} {
+      allow get: if isValidId(businessId) && (isBusinessMember(existing()) || isAdmin());
+      allow list: if isAdminToken() || (
+        isSignedIn() && (
+          resource.data.ownerUid == request.auth.uid ||
+          request.auth.uid in resource.data.memberUids
+        )
+      );
+      allow create: if isValidId(businessId) && isVerifiedOrPhoneUser() && isValidBusiness(incoming()) &&
+        incoming().id == businessId &&
+        incoming().ownerUid == request.auth.uid &&
+        businessId == request.auth.uid &&
+        request.auth.uid in incoming().memberUids &&
+        incoming().staffCount == 0 &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(businessId) && isVerifiedOrPhoneUser() && isValidBusiness(incoming()) && (
+        isAdmin() ||
+        (
+          isBusinessOwner(existing()) &&
+          incoming().id == existing().id &&
+          incoming().ownerUid == existing().ownerUid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time && (
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'type', 'phone', 'nuit', 'logoDataUrl', 'categories', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'staffCount', 'updatedAt'])
+          )
+        )
+      );
+      allow delete: if isValidId(businessId) && isAdmin();
+    }
+
+    match /products/{productId} {
+      allow get: if isValidId(productId) && (isBusinessMember(existing()) || isAdmin());
+      allow list: if isAdminToken() || (
+        isSignedIn() && (
+          resource.data.ownerUid == request.auth.uid ||
+          request.auth.uid in resource.data.memberUids
+        )
+      );
+      allow create: if isValidId(productId) && isVerifiedOrPhoneUser() && isValidProduct(incoming()) &&
+        incoming().id == productId &&
+        incoming().ownerUid == request.auth.uid &&
+        incoming().businessId == request.auth.uid &&
+        businessExists(incoming().businessId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(productId) && isVerifiedOrPhoneUser() && isValidProduct(incoming()) && (
+        isAdmin() ||
+        (
+          incoming().id == existing().id &&
+          incoming().businessId == existing().businessId &&
+          incoming().ownerUid == existing().ownerUid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time && (
+            (
+              isBusinessOwner(existing()) && (
+                incoming().diff(existing()).affectedKeys().hasOnly(['name', 'category', 'isService', 'costPrice', 'salePrice', 'quantity', 'minStock', 'photoDataUrl', 'updatedAt']) ||
+                incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt'])
+              )
+            ) ||
+            (
+              isBusinessMember(existing()) &&
+              incoming().diff(existing()).affectedKeys().hasOnly(['quantity', 'updatedAt']) &&
+              incoming().quantity <= existing().quantity
+            )
+          )
+        )
+      );
+      allow delete: if isValidId(productId) && (
+        isAdmin() ||
+        (isVerifiedOrPhoneUser() && isBusinessOwner(existing()))
+      );
+    }
+
+    match /sales/{saleId} {
+      allow get: if isValidId(saleId) && (isBusinessMember(existing()) || isAdmin());
+      allow list: if isAdminToken() || (
+        isSignedIn() && (
+          resource.data.ownerUid == request.auth.uid ||
+          request.auth.uid in resource.data.memberUids
+        )
+      );
+      allow create: if isValidId(saleId) && isVerifiedOrPhoneUser() && isValidSale(incoming()) &&
+        incoming().id == saleId &&
+        incoming().staffUid == request.auth.uid &&
+        isMemberOfBusiness(incoming().businessId) &&
+        incoming().createdAt == request.time;
+      allow update: if isValidId(saleId) && isVerifiedOrPhoneUser() && isValidSale(incoming()) && (
+        isAdmin() ||
+        (
+          isBusinessOwner(existing()) &&
+          incoming().id == existing().id &&
+          incoming().businessId == existing().businessId &&
+          incoming().ownerUid == existing().ownerUid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['memberUids'])
+        )
+      );
+      allow delete: if isValidId(saleId) && (
+        isAdmin() ||
+        (isVerifiedOrPhoneUser() && isBusinessOwner(existing()))
+      );
+    }
+
+    match /customers/{customerId} {
+      allow get: if isValidId(customerId) && (isBusinessMember(existing()) || isAdmin());
+      allow list: if isAdminToken() || (
+        isSignedIn() && (
+          resource.data.ownerUid == request.auth.uid ||
+          request.auth.uid in resource.data.memberUids
+        )
+      );
+      allow create: if isValidId(customerId) && isVerifiedOrPhoneUser() && isValidCustomer(incoming()) &&
+        incoming().id == customerId &&
+        isMemberOfBusiness(incoming().businessId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(customerId) && isVerifiedOrPhoneUser() && isValidCustomer(incoming()) && (
+        isAdmin() ||
+        (
+          isBusinessMember(existing()) &&
+          incoming().id == existing().id &&
+          incoming().businessId == existing().businessId &&
+          incoming().ownerUid == existing().ownerUid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time && (
+            (isBusinessOwner(existing()) && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'secondaryPhone', 'totalDebt', 'memberUids', 'updatedAt'])) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['totalDebt', 'updatedAt'])
+          )
+        )
+      );
+      allow delete: if isValidId(customerId) && (
+        isAdmin() ||
+        (isVerifiedOrPhoneUser() && isBusinessOwner(existing()))
+      );
+    }
+
+    match /debts/{debtId} {
+      allow get: if isValidId(debtId) && (isBusinessMember(existing()) || isAdmin());
+      allow list: if isAdminToken() || (
+        isSignedIn() && (
+          resource.data.ownerUid == request.auth.uid ||
+          request.auth.uid in resource.data.memberUids
+        )
+      );
+      allow create: if isValidId(debtId) && isVerifiedOrPhoneUser() && isValidDebt(incoming()) &&
+        incoming().id == debtId &&
+        isMemberOfBusiness(incoming().businessId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(debtId) && isVerifiedOrPhoneUser() && isValidDebt(incoming()) && (
+        isAdmin() ||
+        (
+          isBusinessMember(existing()) &&
+          existing().status != 'paid' &&
+          incoming().id == existing().id &&
+          incoming().businessId == existing().businessId &&
+          incoming().ownerUid == existing().ownerUid &&
+          incoming().customerId == existing().customerId &&
+          incoming().originalAmount == existing().originalAmount &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time && (
+            incoming().diff(existing()).affectedKeys().hasOnly(['remainingAmount', 'status', 'updatedAt']) ||
+            (isBusinessOwner(existing()) && incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt']))
+          )
+        )
+      );
+      allow delete: if isValidId(debtId) && isAdmin();
+    }
+
+    match /payments/{paymentId} {
+      allow get: if isValidId(paymentId) && (isBusinessMember(existing()) || isAdmin());
+      allow list: if isAdminToken() || (
+        isSignedIn() && (
+          resource.data.ownerUid == request.auth.uid ||
+          request.auth.uid in resource.data.memberUids
+        )
+      );
+      allow create: if isValidId(paymentId) && isVerifiedOrPhoneUser() && isValidPayment(incoming()) &&
+        incoming().id == paymentId &&
+        isMemberOfBusiness(incoming().businessId) &&
+        incoming().createdAt == request.time;
+      allow update: if isValidId(paymentId) && isVerifiedOrPhoneUser() && isValidPayment(incoming()) && (
+        isAdmin() ||
+        (
+          isBusinessOwner(existing()) &&
+          incoming().id == existing().id &&
+          incoming().businessId == existing().businessId &&
+          incoming().ownerUid == existing().ownerUid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['memberUids'])
+        )
+      );
+      allow delete: if isValidId(paymentId) && isAdmin();
+    }
+
+    match /subscriptions/{businessId} {
+      allow get: if isValidId(businessId) && (isBusinessMember(existing()) || isAdmin());
+      allow list: if isAdminToken() || (
+        isSignedIn() && (
+          resource.data.ownerUid == request.auth.uid ||
+          request.auth.uid in resource.data.memberUids
+        )
+      );
+      allow create: if isValidId(businessId) && isVerifiedOrPhoneUser() && isValidSubscription(incoming()) &&
+        incoming().businessId == businessId && (
+          isAdmin() ||
+          (
+            incoming().ownerUid == request.auth.uid &&
+            businessId == request.auth.uid &&
+            incoming().planId == 'free' &&
+            incoming().status == 'demo' &&
+            incoming().expiresAtMs == 0 &&
+            incoming().updatedAt == request.time
+          )
+        );
+      allow update: if isValidId(businessId) && isVerifiedOrPhoneUser() && isValidSubscription(incoming()) && (
+        isAdmin() ||
+        (
+          isBusinessOwner(existing()) &&
+          incoming().businessId == existing().businessId &&
+          incoming().ownerUid == existing().ownerUid &&
+          incoming().updatedAt == request.time && (
+            (
+              existing().status != 'active' &&
+              incoming().status == 'pending' &&
+              incoming().expiresAtMs == existing().expiresAtMs &&
+              incoming().diff(existing()).affectedKeys().hasOnly(['status', 'planId', 'updatedAt'])
+            ) ||
+            (
+              incoming().status == existing().status &&
+              incoming().planId == existing().planId &&
+              incoming().expiresAtMs == existing().expiresAtMs &&
+              incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt'])
+            )
+          )
+        )
+      );
+      allow delete: if isValidId(businessId) && isAdmin();
+    }
+
+    match /paymentRequests/{requestId} {
+      allow get: if isValidId(requestId) && ((isSignedIn() && existing().ownerUid == request.auth.uid) || isAdmin());
+      allow list: if isAdminToken() || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+      allow create: if isValidId(requestId) && isVerifiedOrPhoneUser() && isValidPaymentRequest(incoming()) &&
+        incoming().id == requestId &&
+        incoming().ownerUid == request.auth.uid &&
+        incoming().businessId == request.auth.uid &&
+        businessExists(incoming().businessId) &&
+        incoming().status == 'pending' &&
+        incoming().adminNote == '' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(requestId) && isVerifiedOrPhoneUser() && isValidPaymentRequest(incoming()) && isAdmin() &&
+        incoming().id == existing().id &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().businessId == existing().businessId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminNote', 'updatedAt']);
+      allow delete: if isValidId(requestId) && isAdmin();
+    }
+
+    match /passwordResetRequests/{requestId} {
+      allow get: if isValidId(requestId) && isAdmin();
+      allow list: if isAdminToken();
+      allow create: if isValidId(requestId) && isValidPasswordResetRequest(incoming()) &&
+        incoming().id == requestId &&
+        incoming().status == 'pending' &&
+        incoming().createdAt == request.time;
+      allow update: if isValidId(requestId) && isAdmin() && isValidPasswordResetRequest(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+      allow delete: if isValidId(requestId) && isAdmin();
+    }
+  }
+}
