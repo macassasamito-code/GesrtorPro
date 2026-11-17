@@ -127,17 +127,19 @@ export const AdminPanelView: React.FC = () => {
                 className="rounded-2xl border border-[#E2E8E4] dark:border-[#854D0E]/60 bg-[#FEFCE8] dark:bg-[#2A230D] p-4 space-y-3"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-[#0F1F16] dark:text-[#F1F5F2]">
                       {req.ownerName} · {req.ownerPhone ? formatPhoneDisplay(req.ownerPhone) : 'Google'}
                     </p>
-                    <p className="text-xs text-[#4B5E53] dark:text-[#B9C9BF]">
+                    <p className="text-xs text-[#4B5E53] dark:text-[#B9C9BF] break-words">
                       <strong className="uppercase">{req.wallet}</strong> · Cód.{' '}
                       <strong className="font-mono text-[#0F1F16] dark:text-[#F1F5F2]">{req.transactionCode}</strong> ·{' '}
                       {formatDateTimeMz(req.createdAtMs || 0)}
                     </p>
                     {req.proofNote && (
-                      <p className="text-xs text-[#36493E] dark:text-[#D1DDD6] mt-1">Nota: {req.proofNote}</p>
+                      <p className="mt-1.5 rounded-xl bg-white/70 dark:bg-[#121F18]/70 border border-[#EAB308]/30 dark:border-[#854D0E]/50 px-3 py-2 text-xs text-[#36493E] dark:text-[#D1DDD6] whitespace-pre-wrap break-words">
+                        {req.proofNote}
+                      </p>
                     )}
                   </div>
                   <p className="font-mono text-lg font-extrabold text-[#15803D] dark:text-[#4ADE80] tabular-nums shrink-0">

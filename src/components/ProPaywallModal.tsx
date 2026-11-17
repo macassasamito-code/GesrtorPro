@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Check, CheckCircle2, Clock, Copy, ShieldCheck, Smartphone, X } from 'lucide-react';
+import { Check, CheckCircle2, Clock, Copy, MessageSquareText, ShieldCheck, X } from 'lucide-react';
 import { getWalletInstruction, PAYMENT_METHODS } from '../config/payment';
 import { PRO_BENEFITS, PRO_PLANS } from '../config/plans';
 import { useApp } from '../contexts/AppContext';
+import { parseTransactionProof } from '../services/paymentGateway';
 import { PlanId, WalletProvider } from '../types';
 import { formatDateTimeMz, formatMT } from '../utils/formatters';
 
@@ -36,6 +37,7 @@ export const ProPaywallModal: React.FC<ProPaywallModalProps> = ({ open, onClose 
   const activePlan = PRO_PLANS.find((p) => p.id === selectedPlan) || PRO_PLANS[0];
   const activeWallet = getWalletInstruction(selectedWallet);
   const hasPendingRequest = paymentRequests.some((r) => r.status === 'pending');
+  const parsedProof = transactionCode.trim() ? parseTransactionProof(transactionCode, proofNote) : null;
 
   const handleCopyNumber = async (num: string) => {
     try {
@@ -55,7 +57,7 @@ export const ProPaywallModal: React.FC<ProPaywallModalProps> = ({ open, onClose 
       return;
     }
     if (transactionCode.trim().length < 3) {
-      setError('Insira o código da transacção recebido por SMS.');
+      setError('Cole o código da transacção ou a mensagem SMS de confirmação.');
       return;
     }
 
@@ -213,14 +215,14 @@ export const ProPaywallModal: React.FC<ProPaywallModalProps> = ({ open, onClose 
                   <p className="text-xs font-bold text-[#0F1F16] dark:text-[#F1F5F2] mb-2">Os meus pedidos de pagamento</p>
                   <div className="space-y-2">
                     {paymentRequests.slice(0, 3).map((req) => (
-                      <div key={req.id} className="flex items-center justify-between text-xs py-1.5 border-b border-[#F1F5F2] dark:border-[#23382C] last:border-0">
-                        <div>
+                      <div key={req.id} className="flex items-start justify-between gap-3 text-xs py-1.5 border-b border-[#F1F5F2] dark:border-[#23382C] last:border-0">
+                        <div className="min-w-0 flex-1">
                           <span className="font-semibold text-[#0F1F16] dark:text-[#F1F5F2] uppercase">{req.wallet}</span>
-                          <span className="text-[#4B5E53] dark:text-[#8FA598]"> · Cód. {req.transactionCode}</span>
+                          <span className="text-[#4B5E53] dark:text-[#8FA598] break-words"> · Cód. {req.transactionCode}</span>
                           <p className="text-[11px] text-[#64748B] dark:text-[#8FA598]">{formatDateTimeMz(req.createdAtMs || 0)}</p>
                         </div>
                         <span
-                          className={`font-semibold ${
+                          className={`font-semibold shrink-0 ${
                             req.status === 'approved'
                               ? 'text-[#15803D] dark:text-[#4ADE80]'
                               : req.status === 'rejected'
@@ -294,20 +296,31 @@ export const ProPaywallModal: React.FC<ProPaywallModalProps> = ({ open, onClose 
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-[#0F1F16] dark:text-[#F1F5F2] mb-1.5">
-                  2. Código da transacção (SMS) *
+                <label className="block text-sm font-semibold text-[#0F1F16] dark:text-[#F1F5F2] mb-1">
+                  2. Código da transacção ou SMS de confirmação *
                 </label>
+                <p className="text-xs text-[#4B5E53] dark:text-[#8FA598] mb-2">
+                  Pode colar apenas o código ou toda a mensagem SMS recebida após a transferência.
+                </p>
                 <div className="relative">
-                  <Smartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#4B5E53] dark:text-[#8FA598]" />
-                  <input
-                    type="text"
+                  <MessageSquareText className="absolute left-3.5 top-3.5 h-4 w-4 text-[#4B5E53] dark:text-[#8FA598]" />
+                  <textarea
                     required
+                    rows={3}
+                    maxLength={1000}
                     value={transactionCode}
                     onChange={(e) => setTransactionCode(e.target.value)}
-                    placeholder="Ex: PP240519.1234.A89012"
-                    className="min-h-[48px] w-full rounded-xl border border-[#CBD5CF] dark:border-[#2E4839] bg-white dark:bg-[#0E1813] pl-10 pr-4 text-sm font-mono text-[#0F1F16] dark:text-[#F1F5F2] placeholder:text-[#8FA598] focus:border-[#15803D] dark:focus:border-[#4ADE80] focus:outline-none"
+                    placeholder="Ex: PP240519.1234.A89012 ou cole aqui toda a mensagem SMS de confirmação..."
+                    className="w-full rounded-xl border border-[#CBD5CF] dark:border-[#2E4839] bg-white dark:bg-[#0E1813] pl-10 pr-4 py-3 text-sm text-[#0F1F16] dark:text-[#F1F5F2] placeholder:text-[#8FA598] focus:border-[#15803D] dark:focus:border-[#4ADE80] focus:outline-none resize-y"
                   />
                 </div>
+                {parsedProof?.isFullSms && (
+                  <p className="mt-1.5 text-xs font-medium text-[#15803D] dark:text-[#4ADE80]">
+                    {parsedProof.extractedCode
+                      ? `SMS completa detectada · Código identificado: ${parsedProof.extractedCode}`
+                      : 'Mensagem SMS completa pronta para envio ao administrador.'}
+                  </p>
+                )}
               </div>
 
               <div>

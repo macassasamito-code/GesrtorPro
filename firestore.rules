@@ -223,8 +223,8 @@ service cloud.firestore {
         data.planId in ['monthly', 'quarterly', 'annual'] &&
         data.amount is number && data.amount > 0 &&
         data.wallet in ['mpesa', 'emola', 'mkesh'] &&
-        data.transactionCode is string && data.transactionCode.size() >= 3 && data.transactionCode.size() <= 80 &&
-        data.proofNote is string && data.proofNote.size() <= 300 &&
+        data.transactionCode is string && data.transactionCode.size() >= 3 && data.transactionCode.size() <= 500 &&
+        data.proofNote is string && data.proofNote.size() <= 1200 &&
         data.status in ['pending', 'approved', 'rejected'] &&
         data.adminNote is string && data.adminNote.size() <= 300 &&
         data.createdAt is timestamp &&
